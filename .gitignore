@@ -1,0 +1,11 @@
+node_modules/
+.env
+.DS_Store
+npm-debug.log*
+data/*.db-shm
+data/*.db-wal
+storage_nodes/
+
+# Local binaries (install per-platform instead of committing)
+bin/node
+bin/ngrok

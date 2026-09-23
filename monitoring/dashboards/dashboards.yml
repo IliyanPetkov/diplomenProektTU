@@ -1,0 +1,16 @@
+# =====================================================================
+# Grafana Dashboard Provider Configuration
+# =====================================================================
+
+apiVersion: 1
+
+providers:
+  - name: 'CloudFS Dashboards'
+    orgId: 1
+    folder: 'CloudFS'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

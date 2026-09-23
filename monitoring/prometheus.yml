@@ -1,0 +1,36 @@
+# =====================================================================
+# Prometheus Конфигурация за събиране на метрики от микросервисите
+# =====================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'cloudfs-gateway'
+    static_configs:
+      - targets: ['gateway:8080']
+
+  - job_name: 'cloudfs-identity'
+    static_configs:
+      - targets: ['identity-service:8081']
+
+  - job_name: 'cloudfs-metadata'
+    static_configs:
+      - targets: ['metadata-service:8082']
+
+  - job_name: 'cloudfs-storage'
+    static_configs:
+      - targets: ['storage-service:8083']
+
+  - job_name: 'cloudfs-sharing'
+    static_configs:
+      - targets: ['sharing-service:8084']
+
+  - job_name: 'cloudfs-realtime'
+    static_configs:
+      - targets: ['realtime-service:8085']
+
+  - job_name: 'cloudfs-audit'
+    static_configs:
+      - targets: ['audit-service:8086']

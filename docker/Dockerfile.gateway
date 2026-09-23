@@ -1,0 +1,21 @@
+# =====================================================================
+# Multi-stage Dockerfile за API Gateway & Frontend Edge Service
+# =====================================================================
+
+FROM node:22-alpine3.20 AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+RUN chown -R node:node /app
+
+COPY --chown=node:node package.json ./
+COPY --chown=node:node src/ ./src/
+COPY --chown=node:node migrations/ ./migrations/
+
+USER node
+
+HEALTHCHECK --interval=20s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/health/live || exit 1
+
+EXPOSE 8080
+CMD ["node", "src/services/gateway/index.js"]

@@ -1,0 +1,69 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Общ брой HTTP заявки",
+      "type": "stat",
+      "targets": [{ "expr": "sum(http_requests_total)", "legendFormat": "Заявки" }]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "title": "Качени файлове (Uploads)",
+      "type": "stat",
+      "targets": [{ "expr": "sum(uploads_total)", "legendFormat": "Uploads" }]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "title": "Свалени файлове (Downloads)",
+      "type": "stat",
+      "targets": [{ "expr": "sum(downloads_total)", "legendFormat": "Downloads" }]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "title": "Активни Realtime връзки",
+      "type": "stat",
+      "targets": [{ "expr": "sum(active_realtime_connections)", "legendFormat": "SSE Клиенти" }]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 5,
+      "title": "Честота на заявките по микросервиси (req/sec)",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by (service) (rate(http_requests_total[1m]))", "legendFormat": "{{service}}" }]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 6,
+      "title": "Мрежов трафик (Bytes Transferred)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "rate(bytes_uploaded_total[1m])", "legendFormat": "Upload Bytes/s" },
+        { "expr": "rate(bytes_downloaded_total[1m])", "legendFormat": "Download Bytes/s" }
+      ]
+    }
+  ],
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["cloudfs", "tu-sofia", "microservices"],
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "CloudFS - Наблюдаемост на микросервизната архитектура",
+  "uid": "cloudfs-main-dashboard",
+  "version": 1
+}

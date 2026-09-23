@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CloudFS - Облачна система за файлове (ТУ - София)</title>
+  <link rel="stylesheet" href="/styles.css?v=3">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-brand">
+      <span class="logo-icon">☁️</span>
+      <span class="logo-text">CloudFS <strong>ТУ-София</strong></span>
+      <span class="architecture-badge">Микросервизна архитектура</span>
+    </div>
+    <div id="authHeaderSection" class="header-user-section hidden">
+      <span id="userBadge" class="user-badge"></span>
+      <span id="roleBadge" class="role-badge">USER</span>
+      <button id="adminPanelBtn" class="btn btn-secondary hidden" title="Административен одит и метрики">🛡️ Администрация</button>
+      <button id="logoutBtn" class="btn btn-outline" title="Изход от акаунта">🚪 Изход</button>
+    </div>
+  </header>
+
+  <main class="app-container">
+    <!-- 1. Екран за Автентикация (Login / Register) -->
+    <section id="authSection" class="auth-wrapper">
+      <div class="auth-card">
+        <div class="auth-tabs">
+          <button id="tabLogin" class="tab-btn active">Вход</button>
+          <button id="tabRegister" class="tab-btn">Регистрация</button>
+        </div>
+
+        <form id="loginForm" class="auth-form">
+          <h2>Вход в системата</h2>
+          <div class="form-group">
+            <label for="loginEmail">Имейл адрес:</label>
+            <input type="email" id="loginEmail" required placeholder="student@tu-sofia.bg">
+          </div>
+          <div class="form-group">
+            <label for="loginPassword">Парола:</label>
+            <input type="password" id="loginPassword" required placeholder="••••••••">
+          </div>
+          <div class="demo-accounts-hint">
+            <div class="demo-accounts-title">💡 Бърз демо вход с 1 клик:</div>
+            <div class="demo-buttons">
+              <button type="button" class="btn-demo" id="demoStudentBtn">👨‍🎓 Студент</button>
+              <button type="button" class="btn-demo" id="demoAdminBtn">🛡️ Администратор</button>
+              <button type="button" class="btn-demo" id="demoColleagueBtn">🤝 Колега</button>
+            </div>
+            <div class="demo-switch-hint">
+              Или искате свой нов акаунт? <a href="javascript:void(0)" id="linkGoToRegister">Кликнете тук за Регистрация ➔</a>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Вход в профила</button>
+        </form>
+
+        <form id="registerForm" class="auth-form hidden">
+          <h2>Регистрация на нов потребител</h2>
+          <p class="auth-subtitle">Създайте локален профил със собствена квота за съхранение</p>
+          <div class="form-group">
+            <label for="regFullName">Име и Фамилия:</label>
+            <input type="text" id="regFullName" required placeholder="Иван Иванов">
+          </div>
+          <div class="form-group">
+            <label for="regEmail">Имейл адрес:</label>
+            <input type="email" id="regEmail" required placeholder="i.ivanov@tu-sofia.bg">
+          </div>
+          <div class="form-group">
+            <label for="regPassword">Парола (минимум 8 символа):</label>
+            <input type="password" id="regPassword" required minlength="8" placeholder="••••••••">
+          </div>
+          <button type="submit" class="btn btn-success btn-block">Създай акаунт и влез веднага</button>
+          <div class="demo-switch-hint" style="text-align: center; margin-top: 14px;">
+            Вече имате съществуващ акаунт? <a href="javascript:void(0)" id="linkGoToLogin">Влезте тук ➔</a>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 1.1 Екран за Публично споделен файл (Public Share Landing Page) -->
+    <section id="publicShareSection" class="auth-wrapper hidden">
+      <div class="auth-card" style="max-width: 480px; text-align: center;">
+        <div style="font-size: 3.2rem; margin-bottom: 8px;">☁️📦</div>
+        <h2>Споделен файл през CloudFS</h2>
+        <p class="auth-subtitle" id="publicShareSubtitle">Зареждане на детайли за файла...</p>
+
+        <div id="publicShareInfoCard" class="hidden" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; padding:16px; margin:18px 0; text-align:left; font-size:0.9rem;">
+          <div style="margin-bottom:8px;"><strong>📄 Име на файл:</strong> <span id="pubFileName">—</span></div>
+          <div style="margin-bottom:8px;"><strong>📊 Размер:</strong> <span id="pubFileSize">—</span></div>
+          <div id="pubFileProtectedRow" class="hidden" style="margin-bottom:4px; color:#d97706; font-weight:600;">
+            🔒 Файлът е защитен с парола
+          </div>
+        </div>
+
+        <div id="publicSharePassGroup" class="form-group hidden" style="text-align: left; margin-top: 15px;">
+          <label for="publicSharePasswordInput">Въведете парола за достъп:</label>
+          <input type="password" id="publicSharePasswordInput" class="modal-input" placeholder="Парола за отключване">
+        </div>
+
+        <button id="downloadPublicFileBtn" class="btn btn-success btn-block" style="font-size: 1.05rem; padding: 12px; margin-top: 15px;">
+          ⬇️ Свали файла
+        </button>
+
+        <div style="margin-top: 20px; font-size: 0.85rem;">
+          <a href="/" style="color: var(--primary); font-weight: 600; text-decoration: none;">➔ Към началната страница на CloudFS</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Главен файлов мениджър -->
+    <section id="fileManagerSection" class="file-manager hidden">
+      <!-- Странична лента (Sidebar) -->
+      <aside class="sidebar">
+        <nav class="sidebar-nav">
+          <button id="navFilesBtn" class="nav-item active">📁 Всички мои файлове</button>
+          <button id="navSharedBtn" class="nav-item">🤝 Споделени с мен</button>
+          <button id="navTrashBtn" class="nav-item">🗑️ Кошче</button>
+          <button id="navAdminFilesBtn" class="nav-item hidden" style="border-left: 3px solid #e74c3c; font-weight: 600; background: #fff5f5; color: #c0392b;">🌐 Всички файлове (Admin)</button>
+        </nav>
+
+        <div class="quota-widget">
+          <div class="quota-labels">
+            <span>Използвана квота</span>
+            <span id="quotaText">0 MB / 100 MB</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div id="quotaProgressBar" class="progress-bar-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <div class="realtime-status-widget">
+          <span class="status-dot online"></span>
+          <span id="realtimeStatusText">Свързан за синхронизация в реално време</span>
+        </div>
+      </aside>
+
+      <!-- Главно съдържание -->
+      <div class="content-area">
+        <!-- Панел за управление и търсене -->
+        <div class="toolbar">
+          <div class="breadcrumbs" id="breadcrumbsContainer">
+            <span class="breadcrumb-item" data-folder-id="">Начало (Root)</span>
+          </div>
+
+          <div class="toolbar-actions">
+            <input type="text" id="searchInput" class="search-input" placeholder="🔍 Търсене на файл или папка...">
+            <button id="createFolderBtn" class="btn btn-outline">➕ Нова папка</button>
+            <button id="uploadTriggerBtn" class="btn btn-primary">⬆️ Качи файл</button>
+            <input type="file" id="hiddenFileInput" style="display: none;">
+          </div>
+        </div>
+
+        <!-- Drag & Drop Зона за качване -->
+        <div id="dropZone" class="drop-zone">
+          <p>📥 Плъзнете и пуснете файлове тук за бързо качване с изчисление на SHA-256</p>
+        </div>
+
+        <!-- Индикатор за напредък при качване -->
+        <div id="uploadProgressCard" class="upload-progress-card hidden">
+          <div class="upload-info">
+            <span id="uploadFilename">Качване на файл...</span>
+            <span id="uploadPercent">0%</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div id="uploadProgressBar" class="progress-bar-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Таблица с файлове и папки -->
+        <div class="table-container">
+          <table class="files-table">
+            <thead>
+              <tr>
+                <th data-sort="name">Име ⬍</th>
+                <th data-sort="size_bytes">Размер ⬍</th>
+                <th>Версия</th>
+                <th>SHA-256 Контролна сума</th>
+                <th data-sort="updated_at">Последна промяна ⬍</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody id="filesTableBody">
+              <!-- Динамично зареждане на редове -->
+            </tbody>
+          </table>
+          <div id="emptyFolderMessage" class="empty-state hidden">
+            Тази папка е празна. Качете файл или създайте папка.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Административен Панел: Одит и Наблюдаемост -->
+    <section id="adminSection" class="admin-panel hidden">
+      <div class="admin-header">
+        <h2>🛡️ Административен Одитен Журнал и Наблюдаемост</h2>
+        <button id="closeAdminBtn" class="btn btn-outline">⬅️ Назад към файловете</button>
+      </div>
+
+      <!-- Метрики карти -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-value" id="metricUsers">0</div>
+          <div class="metric-title">Потребители</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="metricFiles">0</div>
+          <div class="metric-title">Активни файлове</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="metricStorage">0 MB</div>
+          <div class="metric-title">Заето дисково пространство</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="metricLogins">0</div>
+          <div class="metric-title">Успешни влизания</div>
+        </div>
+      </div>
+
+      <!-- Многовъзлов статус на излишъка (Storage Redundancy Nodes) -->
+      <div class="storage-nodes-section">
+        <h3>Клъстер за съхранение с излишък (Multi-Volume Erasure / Redundancy)</h3>
+        <p class="redundancy-note">
+          ⚠️ <em>Забележка: 4-те локални възела симулират отказ на дисков контролер/том. При отказ на един възел четенето и записът продължават без загуба на данни.</em>
+        </p>
+        <div id="storageNodesGrid" class="storage-nodes-grid">
+          <!-- Динамични карти на възлите -->
+        </div>
+      </div>
+
+      <!-- Глобален регистър на всички файлове в системата (само за Администратори) -->
+      <div class="admin-files-section">
+        <div class="admin-files-header">
+          <h3>📁 Глобален регистър на всички качени файлове (<span id="adminTotalFilesCount">0</span>)</h3>
+          <input type="text" id="adminFileSearchInput" class="search-input" placeholder="🔍 Филтриране по име, собственик, папка или SHA-256..." style="max-width: 380px;">
+        </div>
+        <p class="redundancy-note">
+          ℹ️ <em>Пълен списък с всички файлове в системата с директни администраторски права за сваляне и инспекция на версиите.</em>
+        </p>
+        <div class="table-container" style="max-height: 420px; overflow-y: auto; margin-top: 10px;">
+          <table class="files-table">
+            <thead>
+              <tr>
+                <th>Име на файл</th>
+                <th>Собственик (Потребител)</th>
+                <th>Директория</th>
+                <th>Размер</th>
+                <th>Версия</th>
+                <th>SHA-256 Контролна сума</th>
+                <th>Качен на</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody id="adminFilesTableBody">
+              <!-- Динамично зареждане на системни файлове -->
+            </tbody>
+          </table>
+          <div id="adminEmptyFilesMessage" class="empty-state hidden">
+            Няма намерени файлове в системата.
+          </div>
+        </div>
+      </div>
+
+      <!-- Одит дневник -->
+      <div class="audit-logs-section">
+        <h3>Одитен журнал на операциите (Append-Only)</h3>
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Време</th>
+              <th>Действие</th>
+              <th>Потребител</th>
+              <th>Ресурс</th>
+              <th>Резултат</th>
+              <th>IP Адрес</th>
+              <th>Детайли</th>
+            </tr>
+          </thead>
+          <tbody id="auditTableBody">
+            <!-- Динамично зареждане на одитни редове -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Модални диалози -->
+  <!-- 1. Модал за създаване на папка -->
+  <div id="folderModal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3>Нова папка</h3>
+      <input type="text" id="newFolderNameInput" placeholder="Име на папка" class="modal-input">
+      <div class="modal-actions">
+        <button id="cancelFolderModalBtn" class="btn btn-outline">Отказ</button>
+        <button id="confirmFolderModalBtn" class="btn btn-primary">Създай</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Модал за преименуване / преместване -->
+  <div id="renameModal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3 id="renameModalTitle">Преименуване</h3>
+      <input type="text" id="renameInput" class="modal-input">
+      <div class="modal-actions">
+        <button id="cancelRenameModalBtn" class="btn btn-outline">Отказ</button>
+        <button id="confirmRenameModalBtn" class="btn btn-primary">Запази</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Модал за версии на файл -->
+  <div id="versionsModal" class="modal-overlay hidden">
+    <div class="modal-content modal-large">
+      <h3 id="versionsModalTitle">История на версиите</h3>
+      <table class="versions-table">
+        <thead>
+          <tr>
+            <th>Версия</th>
+            <th>Размер</th>
+            <th>SHA-256</th>
+            <th>Дата</th>
+            <th>Действие</th>
+          </tr>
+        </thead>
+        <tbody id="versionsTableBody"></tbody>
+      </table>
+      <div class="modal-actions">
+        <button id="closeVersionsModalBtn" class="btn btn-primary">Затвори</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Модал за споделяне (Sharing) -->
+  <div id="sharingModal" class="modal-overlay hidden">
+    <div class="modal-content modal-large">
+      <h3 id="sharingModalTitle">Споделяне на файл</h3>
+      
+      <!-- Споделяне с потребител -->
+      <div class="sharing-section">
+        <h4>Споделяне с регистриран потребител</h4>
+        <div class="share-user-row">
+          <input type="text" id="shareUserEmail" list="registeredUsersDatalist" placeholder="Имейл или име на колега (напр. petar)" class="modal-input" autocomplete="off">
+          <datalist id="registeredUsersDatalist"></datalist>
+          <select id="sharePermissionSelect" class="modal-select">
+            <option value="viewer">Преглед (Viewer)</option>
+            <option value="editor">Редакция (Editor)</option>
+          </select>
+          <button id="confirmUserShareBtn" class="btn btn-primary">Сподели</button>
+        </div>
+        <div id="activeUserSharesList" class="active-shares-list"></div>
+      </div>
+
+      <!-- Публичен линк -->
+      <div class="sharing-section">
+        <h4>Публичен защитен линк</h4>
+        <div class="public-link-form">
+          <label><input type="checkbox" id="publicLinkPassCheck"> Защита с парола</label>
+          <input type="password" id="publicLinkPassInput" placeholder="Парола за достъп" class="modal-input hidden">
+          <button id="generatePublicLinkBtn" class="btn btn-success">Генерирай линк</button>
+        </div>
+        <div id="publicLinksList" class="public-links-list"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button id="closeSharingModalBtn" class="btn btn-outline">Затвори</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Известия (Toasts) -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="/app.js?v=3"></script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+{
+  "name": "diplomen-proekt-tu-cloud-fs",
+  "version": "1.0.0",
+  "description": "Облачна информационна система за съхранение и управление на файлове с микросервисна архитектура - Дипломен проект ТУ-София",
+  "main": "src/services/gateway/index.js",
+  "scripts": {
+    "start": "node --experimental-sqlite src/index.js",
+    "gateway": "node src/services/gateway/index.js",
+    "identity": "node --experimental-sqlite src/services/identity/index.js",
+    "metadata": "node --experimental-sqlite src/services/metadata/index.js",
+    "storage": "node src/services/storage/index.js",
+    "sharing": "node --experimental-sqlite src/services/sharing/index.js",
+    "realtime": "node src/services/realtime/index.js",
+    "audit": "node --experimental-sqlite src/services/audit/index.js",
+    "cleanup": "node --experimental-sqlite src/services/background/cleanup.js",
+    "test": "node --experimental-sqlite --test --test-concurrency=1 tests/**/*.test.js",
+    "test:unit": "node --experimental-sqlite --test tests/unit/*.test.js",
+    "test:integration": "node --experimental-sqlite --test tests/integration/*.test.js",
+    "test:api": "node --experimental-sqlite --test tests/api/*.test.js",
+    "test:security": "node --experimental-sqlite --test tests/security/*.test.js",
+    "test:realtime": "node --experimental-sqlite --test tests/realtime/*.test.js",
+    "test:redundancy": "node --experimental-sqlite --test tests/redundancy/*.test.js",
+    "test:files": "node --experimental-sqlite scripts/upload_test_files.js",
+    "smoke": "node --experimental-sqlite scripts/smoke_test.js",
+    "seed": "node --experimental-sqlite scripts/seed.js"
+  },
+  "keywords": [
+    "cloud-storage",
+    "microservices",
+    "tu-sofia",
+    "diploma-thesis",
+    "realtime-sync",
+    "object-storage",
+    "audit-log"
+  ],
+  "author": "Илиан Петков <ilian.petkov@tu-sofia.bg>",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

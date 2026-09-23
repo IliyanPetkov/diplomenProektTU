@@ -1,0 +1,354 @@
+# =====================================================================
+# Docker Compose Архитектура: CloudFS (ТУ - София)
+# Микросервисна облачна система с излишък на съхранението (Redundancy)
+# =====================================================================
+
+services:
+  # -------------------------------------------------------------------
+  # 1. Структурирани данни: PostgreSQL 16
+  # -------------------------------------------------------------------
+  postgres:
+    image: postgres:16.4-alpine3.20
+    container_name: cloudfs-postgres
+    restart: unless-stopped
+    command: postgres -c password_encryption=scram-sha-256
+    environment:
+      POSTGRES_DB: ${DB_NAME:-cloudfs_db}
+      POSTGRES_USER: ${DB_USER:-cloudfs_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-cloudfs_user} -d ${DB_NAME:-cloudfs_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # -------------------------------------------------------------------
+  # 2. Обектно хранилище с 4-възлов излишък (MinIO Erasure Coding)
+  # -------------------------------------------------------------------
+  minio1:
+    image: minio/minio:RELEASE.2024-08-29T01-40-52Z
+    container_name: cloudfs-minio1
+    restart: unless-stopped
+    command: server --console-address ":9001" http://minio{1...4}/data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio1-data:/data
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  minio2:
+    image: minio/minio:RELEASE.2024-08-29T01-40-52Z
+    container_name: cloudfs-minio2
+    restart: unless-stopped
+    command: server --console-address ":9001" http://minio{1...4}/data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio2-data:/data
+    networks:
+      - backend-net
+
+  minio3:
+    image: minio/minio:RELEASE.2024-08-29T01-40-52Z
+    container_name: cloudfs-minio3
+    restart: unless-stopped
+    command: server --console-address ":9001" http://minio{1...4}/data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio3-data:/data
+    networks:
+      - backend-net
+
+  minio4:
+    image: minio/minio:RELEASE.2024-08-29T01-40-52Z
+    container_name: cloudfs-minio4
+    restart: unless-stopped
+    command: server --console-address ":9001" http://minio{1...4}/data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio4-data:/data
+    networks:
+      - backend-net
+
+  # -------------------------------------------------------------------
+  # 3. Микросервисен слой (Backend Services)
+  # -------------------------------------------------------------------
+  identity-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+    container_name: cloudfs-identity
+    restart: unless-stopped
+    command: ["node", "src/services/identity/index.js"]
+    environment:
+      PORT_IDENTITY: 8081
+      DB_DIALECT: ${DB_DIALECT:-postgres}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_USER: ${DB_USER:-cloudfs_user}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-cloudfs_db}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - cloudfs-shared-data:/app/data
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8081/health/live || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+  metadata-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+    container_name: cloudfs-metadata
+    restart: unless-stopped
+    command: ["node", "src/services/metadata/index.js"]
+    environment:
+      PORT_METADATA: 8082
+      DB_DIALECT: ${DB_DIALECT:-postgres}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_USER: ${DB_USER:-cloudfs_user}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-cloudfs_db}
+      JWT_SECRET: ${JWT_SECRET}
+      REALTIME_HOST: realtime-service
+      PORT_REALTIME: 8085
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - cloudfs-shared-data:/app/data
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8082/health/live || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+  storage-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+    container_name: cloudfs-storage
+    restart: unless-stopped
+    command: ["node", "src/services/storage/index.js"]
+    environment:
+      PORT_STORAGE: 8083
+      DB_DIALECT: ${DB_DIALECT:-postgres}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_USER: ${DB_USER:-cloudfs_user}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-cloudfs_db}
+      JWT_SECRET: ${JWT_SECRET}
+      S3_ENDPOINT: http://minio1:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-cloudfs-data}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio1:
+        condition: service_healthy
+    volumes:
+      - cloudfs-shared-data:/app/data
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8083/health/live || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+  sharing-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+    container_name: cloudfs-sharing
+    restart: unless-stopped
+    command: ["node", "src/services/sharing/index.js"]
+    environment:
+      PORT_SHARING: 8084
+      DB_DIALECT: ${DB_DIALECT:-postgres}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_USER: ${DB_USER:-cloudfs_user}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-cloudfs_db}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - cloudfs-shared-data:/app/data
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8084/health/live || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+  realtime-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+    container_name: cloudfs-realtime
+    restart: unless-stopped
+    command: ["node", "src/services/realtime/index.js"]
+    environment:
+      PORT_REALTIME: 8085
+      JWT_SECRET: ${JWT_SECRET}
+    networks:
+      - backend-net
+      - frontend-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8085/health/live || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+  audit-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+    container_name: cloudfs-audit
+    restart: unless-stopped
+    command: ["node", "src/services/audit/index.js"]
+    environment:
+      PORT_AUDIT: 8086
+      DB_DIALECT: ${DB_DIALECT:-postgres}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_USER: ${DB_USER:-cloudfs_user}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-cloudfs_db}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - cloudfs-shared-data:/app/data
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8086/health/live || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+  # -------------------------------------------------------------------
+  # 4. API Gateway / Edge Service & Frontend Host (:8080)
+  # -------------------------------------------------------------------
+  gateway:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gateway
+    container_name: cloudfs-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      PORT_GATEWAY: 8080
+      JWT_SECRET: ${JWT_SECRET}
+      ALLOWED_ORIGIN: "http://localhost:8080"
+    depends_on:
+      - identity-service
+      - metadata-service
+      - storage-service
+      - sharing-service
+      - realtime-service
+      - audit-service
+    networks:
+      - frontend-net
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/health/live || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # -------------------------------------------------------------------
+  # 5. Наблюдаемост: Prometheus (:9090) и Grafana (:3000)
+  # -------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: cloudfs-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - backend-net
+
+  grafana:
+    image: grafana/grafana:11.1.4
+    container_name: cloudfs-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./monitoring/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - backend-net
+      - frontend-net
+
+# ---------------------------------------------------------------------
+# Мрежова изолация (Network Isolation)
+# ---------------------------------------------------------------------
+networks:
+  frontend-net:
+    driver: bridge
+  backend-net:
+    driver: bridge
+
+# ---------------------------------------------------------------------
+# Постоянни обеми (Named Volumes)
+# ---------------------------------------------------------------------
+volumes:
+  postgres-data:
+  cloudfs-shared-data:
+  minio1-data:
+  minio2-data:
+  minio3-data:
+  minio4-data:
+  prometheus-data:
+  grafana-data:
